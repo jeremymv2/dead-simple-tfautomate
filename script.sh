@@ -9,9 +9,7 @@ install_chef_server () {
 
   rm -f /var/tmp/delivery.license
 
-  curl -s $CHEFSERVER_RPM -o /tmp/pkg.rpm
-  rpm -Uvh /tmp/pkg.rpm
-  rm /tmp/pkg.rpm
+  rpm -Uvh $CHEFSERVER_RPM
   mkdir /root/share
 
   echo "api_fqdn \"$CHEFSERVER\"" |  tee --append /etc/opscode/chef-server.rb >/dev/null
@@ -60,9 +58,7 @@ install_automate_server () {
   read AUTOMATESERVER CHEFSERVER < <(who_is_what $1 $2)
   export AUTOMATESERVER_RPM=`curl -s https://downloads.chef.io/automate/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
 
-  curl -s $AUTOMATESERVER_RPM -o /tmp/pkg.rpm
-  rpm -Uvh /tmp/pkg.rpm
-  rm /tmp/pkg.rpm
+  rpm -Uvh $AUTOMATESERVER_RPM
 
   mkdir /root/share
   mkdir -p /var/opt/delivery/license
