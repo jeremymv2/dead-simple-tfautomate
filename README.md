@@ -7,7 +7,9 @@ This creates the following:
 
 All with the latest stable releases.
 
-In order to keep things super stable, simple and fast, no cookbooks are used, just one shell script.
+In order to keep things super consistent, stable, simple and fast, no cookbooks are used, just one shell script that fetches from downloads.chef.io
+
+It just works, every time.
 
 A local `.chef/knife.rb` is configured for you to start communicating to the Chef Server quickly.
 
