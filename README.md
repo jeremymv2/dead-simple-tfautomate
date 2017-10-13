@@ -19,5 +19,5 @@ A local `.chef/knife.rb` is configured for you to start communicating to the Che
 2. Copy a Chef Automate license file into this directory and name it `delivery.license`
 3. run `terraform plan` to see what it will do
 4. run `terraform apply` to build the infrastructure
-5. run `terraform destroy` to tear everything down
-6. run `knife ...` to begin communicating with the Chef Server
+5. run `knife ...` to begin communicating with the Chef Server
+6. run `terraform destroy` to tear everything down
