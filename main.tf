@@ -46,4 +46,10 @@ resource "null_resource" "provision_cluster" {
       "sudo /var/tmp/script.sh ${count.index} ${join(" ", aws_instance.automate_cluster.*.public_dns)}"
     ]
   }
+  provisioner "local-exec" {
+    command = "curl -s -k http://${element(aws_instance.automate_cluster.*.public_dns, count.index)}:8890/knife.rb -o .chef/knife.rb -m 3 || true"
+  }
+  provisioner "local-exec" {
+    command = "curl -s -k http://${element(aws_instance.automate_cluster.*.public_dns, count.index)}:8890/delivery.pem -o .chef/delivery.pem -m 3 || true"
+  }
 }

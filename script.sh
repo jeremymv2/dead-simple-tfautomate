@@ -11,6 +11,13 @@ install_chef_server () {
 
   rpm -Uvh $CHEFSERVER_RPM
   mkdir /root/share
+  echo "current_dir = File.dirname(__FILE__)" | tee --append /root/share/knife.rb >/dev/null
+  echo "log_level                :info" | tee --append /root/share/knife.rb >/dev/null
+  echo "log_location             STDOUT" | tee --append /root/share/knife.rb >/dev/null
+  echo "node_name                'delivery'" | tee --append /root/share/knife.rb >/dev/null
+  echo "client_key               \"#{current_dir}/delivery.pem\"" | tee --append /root/share/knife.rb >/dev/null
+  echo "ssl_verify_mode          :verify_none" | tee --append /root/share/knife.rb >/dev/null
+  echo "chef_server_url          'https://$CHEFSERVER/organizations/brewinc'" | tee --append /root/share/knife.rb >/dev/null
 
   echo "api_fqdn \"$CHEFSERVER\"" |  tee --append /etc/opscode/chef-server.rb >/dev/null
   echo "data_collector['root_url'] = 'https://$AUTOMATESERVER/data-collector/v0/'" | tee --append /etc/opscode/chef-server.rb >/dev/null
@@ -25,9 +32,9 @@ install_chef_server () {
 
   echo "running web server to serve up /root/share"
   cd /root/share
-  nohup ruby -run -e httpd . -p 8989 --bind-address 0.0.0.0 &
+  nohup ruby -run -e httpd . -p 8890 --bind-address 0.0.0.0 &
   yum install -y lsof
-  export rails_pid=`lsof -i :8989 | awk '{print $2}' | grep -v PID`
+  export rails_pid=`lsof -i :8890 | awk '{print $2}' | grep -v PID`
   yum install -y at
   systemctl start atd
   echo "sleep 600 ; kill -9 $rails_pid" | at now
@@ -41,7 +48,7 @@ install_chef_server () {
 }
 
 get_delivery_pem () {
-  curl -k -s http://$1:8989/delivery.pem -o /etc/delivery/delivery.pem
+  curl -k -s http://$1:8890/delivery.pem -o /etc/delivery/delivery.pem
 }
 
 who_is_what () {

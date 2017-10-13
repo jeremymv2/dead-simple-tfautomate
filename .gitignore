@@ -1,5 +1,5 @@
-.chef
-
+.chef/knife.rb
+.chef/delivery.pem
 .vagrant
 Berksfile.lock
 *~
@@ -23,4 +23,4 @@ bin/*
 *.license
 *.tfstate
 *.tfstate.backup
-
+*.info
