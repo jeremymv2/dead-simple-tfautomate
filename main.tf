@@ -85,3 +85,15 @@ resource "null_resource" "provision_cluster" {
     command = "curl -s http://${element(aws_instance.automate_cluster.*.public_dns, 1)}:8890/delivery.pem -o .chef/delivery.pem -m 3 || true"
   }
 }
+
+output "chef_server" {
+  value = "${aws_instance.automate_cluster.1.public_dns}"
+}
+
+output "automate" {
+  value = "${aws_instance.automate_cluster.2.public_dns}"
+}
+
+output "runner" {
+  value = "${aws_instance.automate_cluster.0.public_dns}"
+}
