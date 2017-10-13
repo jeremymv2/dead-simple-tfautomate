@@ -34,10 +34,10 @@ install_chef_server () {
   cd /root/share
   nohup ruby -run -e httpd . -p 8890 --bind-address 0.0.0.0 &
   yum install -y lsof
-  export rails_pid=`lsof -i :8890 | awk '{print $2}' | grep -v PID`
+  export webrick_pid=`lsof -i :8890 | awk '{print $2}' | grep -v PID`
   yum install -y at
   systemctl start atd
-  echo "sleep 600 ; kill -9 $rails_pid" | at now
+  echo "sleep 600 ; kill -9 $webrick_pid" | at now
 
   chef-server-ctl install chef-manage
   chef-server-ctl reconfigure
