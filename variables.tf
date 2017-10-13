@@ -47,12 +47,12 @@ variable "tag_contact" {
   default = "jmiller@chef.io"
 }
 
-variable "aws_instance_type_runner" {
-  default = "t2.medium"
+variable "tag_names" {
+  default = ["runner", "chef-server", "automate"]
 }
 
-variable "aws_instance_type" {
-  default = "m4.xlarge"
+variable "aws_instance_types" {
+  default = ["t2.medium", "m4.xlarge", "m4.xlarge"]
 }
 
 variable "aws_ami_user" {

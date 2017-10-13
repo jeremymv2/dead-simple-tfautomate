@@ -1,5 +1,13 @@
 # A Simple Automate Cluster Terraform Implementation
-This creates Chef and Automate Servers with the latest stable release.
+
+This creates the following:
+ * Chef Server
+ * Automate Server
+ * Workflow Runner
+
+All with the latest stable releases.
+
+In order to keep things super stable, simple and fast, no cookbooks are used, just one shell script.
 
 A local `.chef/knife.rb` is configured for you to start communicating to the Chef Server quickly.
 

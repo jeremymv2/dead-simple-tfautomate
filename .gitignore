@@ -1,3 +1,4 @@
+chef_id_rsa*
 .chef/knife.rb
 .chef/delivery.pem
 .vagrant

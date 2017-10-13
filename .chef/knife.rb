@@ -4,4 +4,4 @@ log_location             STDOUT
 node_name                'delivery'
 client_key               "#{current_dir}/delivery.pem"
 ssl_verify_mode          :verify_none
-chef_server_url          'https://ec2-34-209-78-22.us-west-2.compute.amazonaws.com/organizations/brewinc'
+chef_server_url          'https://ec2-34-215-168-108.us-west-2.compute.amazonaws.com/organizations/brewinc'

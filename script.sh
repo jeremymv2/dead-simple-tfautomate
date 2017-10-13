@@ -37,14 +37,12 @@ install_chef_server () {
   export webrick_pid=`lsof -i :8890 | awk '{print $2}' | grep -v PID`
   yum install -y at
   systemctl start atd
-  echo "sleep 600 ; kill -9 $webrick_pid" | at now
+  echo "sleep 1200 ; kill -9 $webrick_pid" | at now
 
-  chef-server-ctl install chef-manage
-  chef-server-ctl reconfigure
-
-  sleep 10
-
-  chef-manage-ctl reconfigure --accept-license
+  # chef-server-ctl install chef-manage
+  # chef-server-ctl reconfigure
+  # sleep 10
+  # chef-manage-ctl reconfigure --accept-license
 }
 
 get_delivery_pem () {
@@ -63,6 +61,7 @@ who_is_what () {
 install_automate_server () {
   echo "Installing Chef Server. Parameters: $1 $2" > /root/install.log
   read AUTOMATESERVER CHEFSERVER < <(who_is_what $1 $2)
+  RUNNER=$3
   export AUTOMATESERVER_RPM=`curl -s https://downloads.chef.io/automate/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
 
   rpm -Uvh $AUTOMATESERVER_RPM
@@ -83,6 +82,7 @@ install_automate_server () {
   sleep 15
   pass=$RANDOM$RANDOM
   automate-ctl create-enterprise brewinc --ssh-pub-key-file /etc/delivery/builder_key.pub
+  automate-ctl install-runner $RUNNER chef-user --ssh-identity-file /home/chef-user/.ssh/chef_id_rsa -y
   automate-ctl reset-password brewinc admin $pass
   echo "admin / $pass" > /etc/delivery/ui_login.info
   chmod 600 /etc/delivery/ui_login.info
@@ -90,11 +90,17 @@ install_automate_server () {
   cat /etc/delivery/ui_login.info
 }
 
+install_runner () {
+  echo "Installing Runner.."
+  echo "chef-user ALL=(ALL) NOPASSWD:ALL" | tee --append /etc/sudoers.d/90-cloud-init-users
+}
 
 if [ $# -le 0 ]; then
   echo "Illegal number of parameters"
+elif [ $1 -eq 0 ]; then
+  install_runner
 elif [ $1 -eq 1 ]; then
   install_chef_server $2 $3
 else
-  install_automate_server $2 $3
+  install_automate_server $2 $3 $4
 fi
