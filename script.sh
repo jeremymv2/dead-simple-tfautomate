@@ -59,7 +59,7 @@ who_is_what () {
  }
 
 install_automate_server () {
-  echo "Installing Chef Server. Parameters: $1 $2" > /root/install.log
+  echo "Installing Automate Server. Parameters: $1 $2" > /root/install.log
   read AUTOMATESERVER CHEFSERVER < <(who_is_what $1 $2)
   RUNNER=$3
   export AUTOMATESERVER_RPM=`curl -s https://downloads.chef.io/automate/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
