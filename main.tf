@@ -72,6 +72,10 @@ resource "null_resource" "provision_cluster" {
     source = "script.sh"
     destination = "/var/tmp/script.sh"
   }
+  provisioner "file" {
+    source = "variables.sh"
+    destination = "/var/tmp/variables.sh"
+  }
   provisioner "remote-exec" {
     inline = [
       "chmod +x /var/tmp/script.sh",
@@ -82,7 +86,7 @@ resource "null_resource" "provision_cluster" {
     command = "curl -s http://${element(aws_instance.automate_cluster.*.public_dns, 1)}:8890/knife.rb -o .chef/knife.rb -m 3 || true"
   }
   provisioner "local-exec" {
-    command = "curl -s http://${element(aws_instance.automate_cluster.*.public_dns, 1)}:8890/delivery.pem -o .chef/delivery.pem -m 3 || true"
+    command = "curl -s http://${element(aws_instance.automate_cluster.*.public_dns, 1)}:8890/user.pem -o .chef/user.pem -m 3 || true"
   }
 }
 

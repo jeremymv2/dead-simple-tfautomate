@@ -9,13 +9,13 @@ All with the latest stable releases.
 
 In order to keep things super consistent, stable, simple and fast, no cookbooks are used, just one shell script that fetches from downloads.chef.io
 
-It just works, every time.
+It just works, every time in about 9 minutes.
 
 A local `.chef/knife.rb` is configured for you to start communicating to the Chef Server quickly.
 
 # Quickstart
 
-1. Review and update `variables.tf`
+1. Review and update `variables.tf` and `variables.sh` if needed
 2. Copy a Chef Automate license file into this directory and name it `delivery.license`
 3. run `terraform plan` to see what it will do
 4. run `terraform apply` to build the infrastructure

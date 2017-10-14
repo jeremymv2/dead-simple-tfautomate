@@ -2,22 +2,28 @@
 
 export PATH=/opt/opscode/embedded/bin:$PATH
 
+. $(dirname "$0")/variables.sh
+
+random_string () {
+  cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1
+}
+
 install_chef_server () {
   echo "Installing Chef Server. Parameters: $1 $2" > /root/install.log
   read CHEFSERVER AUTOMATESERVER < <(who_is_what $1 $2)
   export CHEFSERVER_RPM=`curl -s https://downloads.chef.io/chef-server/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
 
   rm -f /var/tmp/delivery.license
-
   rpm -Uvh $CHEFSERVER_RPM
   mkdir /root/share
+
   echo "current_dir = File.dirname(__FILE__)" | tee --append /root/share/knife.rb >/dev/null
   echo "log_level                :info" | tee --append /root/share/knife.rb >/dev/null
   echo "log_location             STDOUT" | tee --append /root/share/knife.rb >/dev/null
-  echo "node_name                'delivery'" | tee --append /root/share/knife.rb >/dev/null
-  echo "client_key               \"#{current_dir}/delivery.pem\"" | tee --append /root/share/knife.rb >/dev/null
+  echo "node_name                '$CHEF_WF_USER'" | tee --append /root/share/knife.rb >/dev/null
+  echo "client_key               \"#{current_dir}/user.pem\"" | tee --append /root/share/knife.rb >/dev/null
   echo "ssl_verify_mode          :verify_none" | tee --append /root/share/knife.rb >/dev/null
-  echo "chef_server_url          'https://$CHEFSERVER/organizations/brewinc'" | tee --append /root/share/knife.rb >/dev/null
+  echo "chef_server_url          'https://$CHEFSERVER/organizations/$CHEF_ORG'" | tee --append /root/share/knife.rb >/dev/null
 
   echo "api_fqdn \"$CHEFSERVER\"" |  tee --append /etc/opscode/chef-server.rb >/dev/null
   echo "data_collector['root_url'] = 'https://$AUTOMATESERVER/data-collector/v0/'" | tee --append /etc/opscode/chef-server.rb >/dev/null
@@ -25,10 +31,10 @@ install_chef_server () {
   echo "profiles['root_url'] = 'https://$AUTOMATESERVER'" | tee --append /etc/opscode/chef-server.rb >/dev/null
 
   chef-server-ctl reconfigure
-  chef-server-ctl user-create admin the admin admin@the.admin.io $RANDOM$RANDOM --filename /root/admin.pem
-  chef-server-ctl org-create brewinc "Brew, Inc." --association_user admin --filename /root/brewinc-validator.pem
-  chef-server-ctl user-create delivery Delivery User delivery@example.com $RANDOM$RANDOM --filename /root/share/delivery.pem
-  chef-server-ctl org-user-add brewinc delivery --admin
+  chef-server-ctl user-create admin the admin admin@the.admin.io $(random_string) --filename /root/admin.pem
+  chef-server-ctl org-create $CHEF_ORG "$CHEF_ORG" --association_user admin --filename /root/$CHEF_ORG-validator.pem
+  chef-server-ctl user-create $CHEF_WF_USER $CHEF_WF_USER User $CHEF_WF_USER@example.com $(random_string) --filename /root/share/user.pem
+  chef-server-ctl org-user-add $CHEF_ORG $CHEF_WF_USER --admin
 
   echo "running web server to serve up /root/share"
   cd /root/share
@@ -38,15 +44,10 @@ install_chef_server () {
   yum install -y at
   systemctl start atd
   echo "sleep 1200 ; kill -9 $webrick_pid" | at now
-
-  # chef-server-ctl install chef-manage
-  # chef-server-ctl reconfigure
-  # sleep 10
-  # chef-manage-ctl reconfigure --accept-license
 }
 
-get_delivery_pem () {
-  curl -k -s http://$1:8890/delivery.pem -o /etc/delivery/delivery.pem
+get_chef_wf_user_pem () {
+  curl -k -s http://$1:8890/user.pem -o /etc/delivery/$CHEF_WF_USER.pem
 }
 
 who_is_what () {
@@ -71,22 +72,21 @@ install_automate_server () {
   cp -f /var/tmp/delivery.license /var/opt/delivery/license
   mkdir -p /etc/delivery
   chmod 0644 /etc/delivery
-  get_delivery_pem $CHEFSERVER
+  get_chef_wf_user_pem $CHEFSERVER
   while [ $? -ne 0 ]; do
-    echo "Automate Server: I'm checking for delivery.pem on remote Chef Server $CHEFSERVER..."
+    echo "Automate Server: waiting for Chef Server to become available in order to fetch $CHEF_WF_USER.pem.."
     sleep 10
-    get_delivery_pem $CHEFSERVER
+    get_chef_wf_user_pem $CHEFSERVER
   done
-  automate-ctl setup --license /var/opt/delivery/license/delivery.license --enterprise brewinc --no-build-node --key /etc/delivery/delivery.pem --server-url https://$CHEFSERVER/organizations/brewinc --fqdn $AUTOMATESERVER --no-configure
+  automate-ctl setup --license /var/opt/delivery/license/delivery.license --enterprise $WF_ENT --no-build-node --key /etc/delivery/$CHEF_WF_USER.pem --server-url https://$CHEFSERVER/organizations/$CHEF_ORG --fqdn $AUTOMATESERVER --no-configure
   automate-ctl reconfigure
   sleep 15
-  pass=$RANDOM$RANDOM
-  automate-ctl create-enterprise brewinc --ssh-pub-key-file /etc/delivery/builder_key.pub
+  pass=$(random_string)
+  automate-ctl create-enterprise $WF_ENT --ssh-pub-key-file /etc/delivery/builder_key.pub
   automate-ctl install-runner $RUNNER chef-user --ssh-identity-file /home/chef-user/.ssh/chef_id_rsa -y
-  automate-ctl reset-password brewinc admin $pass
-  echo "admin / $pass" > /etc/delivery/ui_login.info
+  automate-ctl reset-password $WF_ENT admin $pass
+  echo "NEW LOGIN (/etc/delivery/ui_login.info): admin / $pass" > /etc/delivery/ui_login.info
   chmod 600 /etc/delivery/ui_login.info
-  echo "New Login Info:"
   cat /etc/delivery/ui_login.info
 }
 
