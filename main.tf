@@ -44,25 +44,11 @@ resource "null_resource" "provision_cluster" {
   }
   provisioner "file" {
     source = "chef_id_rsa"
-    destination = "/var/tmp/chef_id_rsa"
+    destination = "/var/tmp/id_rsa"
   }
   provisioner "file" {
     source = "chef_id_rsa.pub"
     destination = "/var/tmp/authorized_keys"
-  }
-  provisioner "remote-exec" {
-    inline = [
-      "sudo useradd chef-user -m",
-      "sudo mkdir /home/chef-user/.ssh",
-      "sudo cp /var/tmp/authorized_keys /home/chef-user/.ssh",
-      "sudo cp /var/tmp/chef_id_rsa /home/chef-user/.ssh",
-      "sudo chown -R chef-user:chef-user /home/chef-user/.ssh",
-      "sudo chmod 700 /home/chef-user/.ssh",
-      "sudo chmod 600 /home/chef-user/.ssh/authorized_keys",
-      "sudo chmod 600 /home/chef-user/.ssh/chef_id_rsa",
-      "sudo rm -f /var/tmp/authorized_keys",
-      "sudo rm -f /var/tmp/chef_id_rsa"
-    ]
   }
   provisioner "file" {
     source = "delivery.license"
@@ -83,10 +69,7 @@ resource "null_resource" "provision_cluster" {
     ]
   }
   provisioner "local-exec" {
-    command = "curl -s http://${element(aws_instance.automate_cluster.*.public_dns, 1)}:8890/knife.rb -o .chef/knife.rb -m 3 || true"
-  }
-  provisioner "local-exec" {
-    command = "curl -s http://${element(aws_instance.automate_cluster.*.public_dns, 1)}:8890/user.pem -o .chef/user.pem -m 3 || true"
+    command = ". variables.sh && scp -oStrictHostKeyChecking=no -i chef_id_rsa -r $CHEF_SYS_USER@${element(aws_instance.automate_cluster.*.public_dns, 1)}:/home/$CHEF_SYS_USER/.chef . || true"
   }
 }
 

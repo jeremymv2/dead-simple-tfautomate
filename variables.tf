@@ -18,7 +18,7 @@ variable "automate_subnet" {
  default = "subnet-608eee3b"
 }
 
-# This SG needs to allow 22,80,443,8890
+# This SG needs to allow 22,443
 variable "automate_security_group" {
  default = "sg-0ba98f71"
 }

@@ -1,6 +1,9 @@
 #!/bin/bash
 
-export PATH=/opt/opscode/embedded/bin:$PATH
+export PATH=/opt/opscode/embedded/bin:/usr/sbin:$PATH
+export CHEFSERVER=$2
+export AUTOMATESERVER=$3
+export RUNNER=$4
 
 . $(dirname "$0")/variables.sh
 
@@ -8,73 +11,60 @@ random_string () {
   cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1
 }
 
+setup_chef_user () {
+ if [ ! -f /home/$CHEF_SYS_USER ]; then
+   useradd $CHEF_SYS_USER -m
+   mv /var/tmp/delivery.license /home/$CHEF_SYS_USER
+   mkdir /home/$CHEF_SYS_USER/.ssh
+   mv /var/tmp/authorized_keys /home/$CHEF_SYS_USER/.ssh
+   mv /var/tmp/id_rsa /home/$CHEF_SYS_USER/.ssh
+   chown -R $CHEF_SYS_USER:$CHEF_SYS_USER /home/$CHEF_SYS_USER/.ssh
+   chmod 700 /home/$CHEF_SYS_USER/.ssh
+   chmod 600 /home/$CHEF_SYS_USER/.ssh/authorized_keys
+   chmod 600 /home/$CHEF_SYS_USER/.ssh/id_rsa
+   mkdir /home/$CHEF_SYS_USER/.chef
+ fi
+}
+
 install_chef_server () {
-  echo "Installing Chef Server. Parameters: $1 $2" > /root/install.log
-  read CHEFSERVER AUTOMATESERVER < <(who_is_what $1 $2)
-  export CHEFSERVER_RPM=`curl -s https://downloads.chef.io/chef-server/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
+  rpm -Uvh `curl -s https://downloads.chef.io/chef-server/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
 
-  rm -f /var/tmp/delivery.license
-  rpm -Uvh $CHEFSERVER_RPM
-  mkdir /root/share
+  kniferb="/home/$CHEF_SYS_USER/.chef/knife.rb"
+  echo "current_dir = File.dirname(__FILE__)" | tee -a $kniferb
+  echo "log_level                :info" | tee -a $kniferb
+  echo "log_location             STDOUT" | tee -a $kniferb
+  echo "node_name                '$CHEF_WF_USER'" | tee -a $kniferb
+  echo "client_key               \"#{current_dir}/$CHEF_WF_USER.pem\"" | tee -a $kniferb
+  echo "ssl_verify_mode          :verify_none" | tee -a $kniferb
+  echo "chef_server_url          'https://$CHEFSERVER/organizations/$CHEF_ORG'" | tee -a $kniferb
 
-  echo "current_dir = File.dirname(__FILE__)" | tee --append /root/share/knife.rb >/dev/null
-  echo "log_level                :info" | tee --append /root/share/knife.rb >/dev/null
-  echo "log_location             STDOUT" | tee --append /root/share/knife.rb >/dev/null
-  echo "node_name                '$CHEF_WF_USER'" | tee --append /root/share/knife.rb >/dev/null
-  echo "client_key               \"#{current_dir}/user.pem\"" | tee --append /root/share/knife.rb >/dev/null
-  echo "ssl_verify_mode          :verify_none" | tee --append /root/share/knife.rb >/dev/null
-  echo "chef_server_url          'https://$CHEFSERVER/organizations/$CHEF_ORG'" | tee --append /root/share/knife.rb >/dev/null
-
-  echo "api_fqdn \"$CHEFSERVER\"" |  tee --append /etc/opscode/chef-server.rb >/dev/null
-  echo "data_collector['root_url'] = 'https://$AUTOMATESERVER/data-collector/v0/'" | tee --append /etc/opscode/chef-server.rb >/dev/null
-  echo "data_collector['token'] = '93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506'" | tee --append /etc/opscode/chef-server.rb >/dev/null
-  echo "profiles['root_url'] = 'https://$AUTOMATESERVER'" | tee --append /etc/opscode/chef-server.rb >/dev/null
+  serverrb="/etc/opscode/chef-server.rb"
+  echo "api_fqdn \"$CHEFSERVER\"" |  tee -a $serverrb
+  echo "data_collector['root_url'] = 'https://$AUTOMATESERVER/data-collector/v0/'" | tee -a $serverrb
+  echo "data_collector['token'] = '93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506'" | tee -a $serverrb
+  echo "profiles['root_url'] = 'https://$AUTOMATESERVER'" | tee -a $serverrb
 
   chef-server-ctl reconfigure
-  chef-server-ctl user-create admin the admin admin@the.admin.io $(random_string) --filename /root/admin.pem
-  chef-server-ctl org-create $CHEF_ORG "$CHEF_ORG" --association_user admin --filename /root/$CHEF_ORG-validator.pem
-  chef-server-ctl user-create $CHEF_WF_USER $CHEF_WF_USER User $CHEF_WF_USER@example.com $(random_string) --filename /root/share/user.pem
+  chef-server-ctl user-create admin the admin admin@the.admin.io $(random_string) --filename /home/$CHEF_SYS_USER/admin.pem
+  chef-server-ctl org-create $CHEF_ORG "$CHEF_ORG" --association_user admin --filename /home/$CHEF_SYS_USER/$CHEF_ORG-validator.pem
+  chef-server-ctl user-create $CHEF_WF_USER $CHEF_WF_USER User $CHEF_WF_USER@example.com $(random_string) --filename /home/$CHEF_SYS_USER/.chef/$CHEF_WF_USER.pem
   chef-server-ctl org-user-add $CHEF_ORG $CHEF_WF_USER --admin
-
-  echo "running web server to serve up /root/share"
-  cd /root/share
-  nohup ruby -run -e httpd . -p 8890 --bind-address 0.0.0.0 &
-  yum install -y lsof
-  export webrick_pid=`lsof -i :8890 | awk '{print $2}' | grep -v PID`
-  yum install -y at
-  systemctl start atd
-  echo "sleep 1200 ; kill -9 $webrick_pid" | at now
 }
 
 get_chef_wf_user_pem () {
-  curl -k -s http://$1:8890/user.pem -o /etc/delivery/$CHEF_WF_USER.pem
+  scp -oStrictHostKeyChecking=no -i /home/$CHEF_SYS_USER/.ssh/id_rsa $CHEF_SYS_USER@$1:/home/$CHEF_SYS_USER/.chef/$CHEF_WF_USER.pem /etc/delivery/$CHEF_WF_USER.pem >/dev/null 2>&1
 }
 
-who_is_what () {
-  export me=`curl -s http://169.254.169.254/latest/meta-data/public-hostname`
-  if [ $1 == $me ]; then
-    echo $1 $2
-  else
-    echo $2 $1
-  fi
- }
-
 install_automate_server () {
-  echo "Installing Automate Server. Parameters: $1 $2 $3" > /root/install.log
-  read AUTOMATESERVER CHEFSERVER < <(who_is_what $1 $2)
-  RUNNER=$3
-  export AUTOMATESERVER_RPM=`curl -s https://downloads.chef.io/automate/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
+  rpm -Uvh `curl -s https://downloads.chef.io/automate/stable | grep -o '</strong> https:[^<]*[^<]*el7.x86_64.rpm' | grep -o 'https.*' | sed -e 's/\&\#x2F;/\\//g' | head -1`
 
-  rpm -Uvh $AUTOMATESERVER_RPM
-
-  mkdir /root/share
   mkdir -p /var/opt/delivery/license
-  cp -f /var/tmp/delivery.license /var/opt/delivery/license
+  mv /home/$CHEF_SYS_USER/delivery.license /var/opt/delivery/license
   mkdir -p /etc/delivery
   chmod 0644 /etc/delivery
   get_chef_wf_user_pem $CHEFSERVER
   while [ $? -ne 0 ]; do
-    echo "Automate Server: waiting for Chef Server to become available in order to fetch $CHEF_WF_USER.pem.."
+    echo "Automate Server: interrogtating the Chef Server for a $CHEF_WF_USER.pem.."
     sleep 10
     get_chef_wf_user_pem $CHEFSERVER
   done
@@ -83,7 +73,7 @@ install_automate_server () {
   sleep 15
   pass=$(random_string)
   automate-ctl create-enterprise $WF_ENT --ssh-pub-key-file /etc/delivery/builder_key.pub
-  automate-ctl install-runner $RUNNER chef-user --ssh-identity-file /home/chef-user/.ssh/chef_id_rsa -y
+  automate-ctl install-runner $RUNNER $CHEF_SYS_USER --ssh-identity-file /home/$CHEF_SYS_USER/.ssh/id_rsa -y
   automate-ctl reset-password $WF_ENT admin $pass
   echo "NEW LOGIN (/etc/delivery/ui_login.info): admin / $pass" > /etc/delivery/ui_login.info
   chmod 600 /etc/delivery/ui_login.info
@@ -92,15 +82,15 @@ install_automate_server () {
 
 install_runner () {
   echo "Installing Runner.."
-  echo "chef-user ALL=(ALL) NOPASSWD:ALL" | tee --append /etc/sudoers.d/90-cloud-init-users
+  echo "$CHEF_SYS_USER ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers.d/90-cloud-init-users
 }
 
-if [ $# -le 0 ]; then
-  echo "Illegal number of parameters"
-elif [ $1 -eq 0 ]; then
+setup_chef_user
+
+if [ $1 -eq 0 ]; then
   install_runner
 elif [ $1 -eq 1 ]; then
-  install_chef_server $2 $3
+  install_chef_server
 else
-  install_automate_server $2 $3 $4
+  install_automate_server
 fi
