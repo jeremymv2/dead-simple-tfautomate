@@ -38,10 +38,12 @@ install_chef_server () {
   echo "ssl_verify_mode          :verify_none" | tee -a $kniferb
   echo "chef_server_url          'https://$CHEFSERVER/organizations/$CHEF_ORG'" | tee -a $kniferb
 
+  token=$(random_string)$(random_string)
+  echo $token > /home/$CHEF_SYS_USER/.chef/dctoken
   serverrb="/etc/opscode/chef-server.rb"
   echo "api_fqdn \"$CHEFSERVER\"" |  tee -a $serverrb
   echo "data_collector['root_url'] = 'https://$AUTOMATESERVER/data-collector/v0/'" | tee -a $serverrb
-  echo "data_collector['token'] = '93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506'" | tee -a $serverrb
+  echo "data_collector['token'] = '$token'" | tee -a $serverrb
   echo "profiles['root_url'] = 'https://$AUTOMATESERVER'" | tee -a $serverrb
 
   chef-server-ctl reconfigure
@@ -51,8 +53,12 @@ install_chef_server () {
   chef-server-ctl org-user-add $CHEF_ORG $CHEF_WF_USER --admin
 }
 
-get_chef_wf_user_pem () {
+chef_wf_user_pem () {
   scp -oStrictHostKeyChecking=no -i /home/$CHEF_SYS_USER/.ssh/id_rsa $CHEF_SYS_USER@$1:/home/$CHEF_SYS_USER/.chef/$CHEF_WF_USER.pem /etc/delivery/$CHEF_WF_USER.pem >/dev/null 2>&1
+}
+
+dc_token () {
+  ssh -t -oStrictHostKeyChecking=no -i /home/$CHEF_SYS_USER/.ssh/id_rsa $CHEF_SYS_USER@$1 "cat /home/$CHEF_SYS_USER/.chef/dctoken | tr -d \"\n\""
 }
 
 install_automate_server () {
@@ -62,13 +68,14 @@ install_automate_server () {
   mv /home/$CHEF_SYS_USER/delivery.license /var/opt/delivery/license
   mkdir -p /etc/delivery
   chmod 0644 /etc/delivery
-  get_chef_wf_user_pem $CHEFSERVER
+  chef_wf_user_pem $CHEFSERVER
   while [ $? -ne 0 ]; do
     echo "Automate Server: interrogtating the Chef Server for a $CHEF_WF_USER.pem.."
     sleep 10
-    get_chef_wf_user_pem $CHEFSERVER
+    chef_wf_user_pem $CHEFSERVER
   done
   automate-ctl setup --license /var/opt/delivery/license/delivery.license --enterprise $WF_ENT --no-build-node --key /etc/delivery/$CHEF_WF_USER.pem --server-url https://$CHEFSERVER/organizations/$CHEF_ORG --fqdn $AUTOMATESERVER --no-configure
+  echo "data_collector['token'] = '$(dc_token $CHEFSERVER)'" | tee -a /etc/delivery/delivery.rb
   automate-ctl reconfigure
   sleep 15
   pass=$(random_string)
