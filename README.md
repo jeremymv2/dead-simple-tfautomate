@@ -8,6 +8,7 @@ This creates the following:
 All with the latest stable releases.
 
 In order to keep things super consistent, stable, simple and fast, no cookbooks are used, just one shell script that fetches from downloads.chef.io
+
 Security is important so we generate random passwords for all accounts including a random data_collector token.
 Tokens and User pems are copied between hosts via ssh key.
 
